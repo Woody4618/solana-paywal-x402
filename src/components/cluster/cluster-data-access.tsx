@@ -19,10 +19,13 @@ export enum ClusterNetwork {
   Custom = 'custom',
 }
 
+const envRpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+
 // By default, we don't configure the mainnet-beta cluster
 // The endpoint provided by clusterApiUrl('mainnet-beta') does not allow access from the browser due to CORS restrictions
 // To use the mainnet-beta cluster, provide a custom endpoint
 export const defaultClusters: SolanaCluster[] = [
+  ...(envRpc ? [{ name: 'custom', endpoint: envRpc, network: ClusterNetwork.Custom } satisfies SolanaCluster] : []),
   {
     name: 'devnet',
     endpoint: clusterApiUrl('devnet'),
