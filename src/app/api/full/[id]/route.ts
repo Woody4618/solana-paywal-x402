@@ -48,8 +48,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const stat = statSync(filePath)
-    const stream = createReadStream(filePath)
-    return new Response(stream as any, {
+    const nodeStream = createReadStream(filePath)
+    const webStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        nodeStream.on('data', (chunk) => controller.enqueue(chunk))
+        nodeStream.on('end', () => controller.close())
+        nodeStream.on('error', (err) => controller.error(err))
+      },
+      cancel() {
+        nodeStream.destroy()
+      },
+    })
+    return new Response(webStream, {
       status: 200,
       headers: {
         'Content-Type': contentType,

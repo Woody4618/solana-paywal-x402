@@ -35,7 +35,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Build an ACK-Pay Payment Request and sign it if keys are present
     if (missing.length === 0) {
       const server = await getIdentityFromPrivateKeyHex(process.env.SERVER_PRIVATE_KEY_HEX as string)
-      const paymentRequestInit = {
+      type PaymentOption = {
+        id: string
+        amount: string
+        decimals: number
+        currency: string
+        recipient: string
+        network: string
+        receiptService: string
+      }
+      type PaymentRequestInit = {
+        id: string
+        paymentOptions: PaymentOption[]
+      }
+      const paymentRequestInit: PaymentRequestInit = {
         id: crypto.randomUUID(),
         paymentOptions: [
           {
@@ -49,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         ],
       }
-      const paymentRequestBody = await createSignedPaymentRequest(paymentRequestInit as any, {
+      const paymentRequestBody = await createSignedPaymentRequest(paymentRequestInit, {
         issuer: server.did,
         signer: server.signer,
         algorithm: server.alg,
