@@ -10,6 +10,7 @@ import {
 } from '@solana/spl-token'
 import { Buffer } from 'buffer'
 import { Button } from '@/components/ui/button'
+import { WalletButton } from '@/components/solana/solana-provider'
 
 const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
 
@@ -33,9 +34,7 @@ type PaymentRequest = {
   recipient: string
 }
 
-const STATIC_IMAGES: ImageItem[] = [
-   { id: '1', thumb: '/1_low.png' },
-]
+const STATIC_IMAGES: ImageItem[] = [{ id: '1', thumb: '/1_low.png' }]
 
 export default function ImagesPage() {
   const [images, setImages] = useState<ImageItem[]>([])
@@ -239,12 +238,13 @@ export default function ImagesPage() {
                 onClick={() => checkAccess(img.id)}
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {st.status === 'idle' && <Button onClick={() => checkAccess(img.id)}>Check access</Button>}
+                {connected && st.status === 'idle' && <Button onClick={() => checkAccess(img.id)}>Check access</Button>}
                 {st.status === 'checking' && <span>Checking...</span>}
+                {!connected && st.status !== 'authorized' && <WalletButton />}
                 {st.status === 'requires_payment' && (
                   <>
                     <span style={{ color: '#b45309' }}>402 Payment Required</span>
-                    <Button onClick={() => pay(img.id)}>Pay</Button>
+                    {connected ? <Button onClick={() => pay(img.id)}>Pay</Button> : <WalletButton />}
                   </>
                 )}
                 {st.status === 'paying' && <span>Paying...</span>}
@@ -258,9 +258,6 @@ export default function ImagesPage() {
                   </>
                 )}
                 {st.status === 'error' && <span style={{ color: 'crimson' }}>{st.message}</span>}
-                <Button variant="outline" onClick={() => window.open(img.thumb, '_blank')}>
-                  Open thumb
-                </Button>
               </div>
             </div>
           )
