@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
       type PaymentRequestInit = {
         id: string
-        paymentOptions: PaymentOption[]
+        paymentOptions: [PaymentOption, ...PaymentOption[]]
       }
       const paymentRequestInit: PaymentRequestInit = {
         id: crypto.randomUUID(),
