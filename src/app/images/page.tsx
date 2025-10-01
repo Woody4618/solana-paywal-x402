@@ -257,7 +257,17 @@ export default function ImagesPage() {
                     <span style={{ marginLeft: 8, color: '#2563eb' }}>Expires in {remaining}s</span>
                   </>
                 )}
-                {st.status === 'error' && <span style={{ color: 'crimson' }}>{st.message}</span>}
+                {st.status === 'error' && (
+                  <>
+                    <span style={{ color: 'crimson' }}>{st.message}</span>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCard((prev) => ({ ...prev, [img.id]: { status: 'idle' } }))}
+                    >
+                      Try again
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )
