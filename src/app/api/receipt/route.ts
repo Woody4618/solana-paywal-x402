@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     // Compose payer DID (did:pkh:solana) from fee payer
     const firstKey = (tx.transaction.message as { accountKeys: unknown[] }).accountKeys[0]
     const feePayer = toBase58FromAccountKey(firstKey)
-    const payerDid = `did:pkh:solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:${feePayer}`
+    const payerDid = `did:pkh:solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:${feePayer}` as `did:${string}:${string}`
 
     // Issue ACK-Pay Receipt VC
     const receiptIssuer = await getIdentityFromPrivateKeyHex(process.env.RECEIPT_SERVICE_PRIVATE_KEY_HEX as string)
