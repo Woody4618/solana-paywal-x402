@@ -45,6 +45,7 @@ export default function AnimatePage() {
   const [prompt, setPrompt] = useState('')
   const [duration, setDuration] = useState<'5' | '10'>('5')
   const [state, setState] = useState<ReqState>({ status: 'idle' })
+  const [progress, setProgress] = useState<number>(0)
 
   async function sha256Hex(input: string): Promise<string> {
     const enc = new TextEncoder()
@@ -106,12 +107,16 @@ export default function AnimatePage() {
       const started = Date.now()
       const timeoutMs = 10 * 60 * 1000
       for (;;) {
-        if (Date.now() - started > timeoutMs) break
+        const elapsed = Date.now() - started
+        // naive time-based progress estimate up to 90%
+        const pct = Math.min(90, Math.floor((elapsed / timeoutMs) * 90))
+        setProgress(pct)
+        if (elapsed > timeoutMs) break
         await new Promise((r) => setTimeout(r, delay))
         delay = Math.min(maxDelay, Math.floor(delay * 1.3))
         const s = await fetch(`/api/animate/status/${requestId}`)
         if (!s.ok) continue
-        const j = (await s.json()) as { status?: string }
+        const j = (await s.json()) as { status?: string; queue_position?: number }
         if (j.status === 'IN_PROGRESS' || j.status === 'IN_QUEUE') {
           setState((prev) => (prev.status === 'queued' ? { ...prev, status: 'running' } : prev))
           continue
@@ -120,6 +125,7 @@ export default function AnimatePage() {
           const r = await fetch(`/api/animate/result/${requestId}`)
           const jr = (await r.json().catch(() => ({}))) as { url?: string }
           if (jr.url) {
+            setProgress(100)
             setState({ status: 'completed', url: jr.url })
             return
           }
@@ -273,7 +279,21 @@ export default function AnimatePage() {
           </div>
         )}
         {state.status === 'starting' && <span>Starting...</span>}
-        {(state.status === 'queued' || state.status === 'running') && <span>Generating video...</span>}
+        {(state.status === 'queued' || state.status === 'running') && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span>Generating video...</span>
+            <div style={{ width: '100%', height: 8, background: '#e5e7eb', borderRadius: 9999, overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: `${progress}%`,
+                  height: '100%',
+                  background: '#2563eb',
+                  transition: 'width 400ms ease',
+                }}
+              />
+            </div>
+          </div>
+        )}
         {state.status === 'completed' && (
           <div style={{ display: 'grid', gap: 8 }}>
             <a href={state.url} target="_blank" rel="noreferrer">
