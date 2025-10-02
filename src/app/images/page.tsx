@@ -172,6 +172,14 @@ export default function ImagesPage() {
       const tx = new VersionedTransaction(messageV0)
       const signature = await sendTransaction(tx, connection, { maxRetries: 5 })
 
+      // Confirm before requesting receipt to avoid race conditions
+      try {
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+        await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+      } catch {
+        // best-effort; proceed to server which will also validate
+      }
+
       const rec = await fetch('/api/receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
