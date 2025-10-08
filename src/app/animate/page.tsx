@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletButton } from '@/components/solana/solana-provider'
@@ -46,6 +46,9 @@ export default function AnimatePage() {
   const [duration, setDuration] = useState<'5' | '10'>('5')
   const [state, setState] = useState<ReqState>({ status: 'idle' })
   const [progress, setProgress] = useState<number>(0)
+  const [filePreview, setFilePreview] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const MAX_FILE_BYTES = 3 * 1024 * 1024 // ~3MB to keep base64 under common limits
 
   async function sha256Hex(input: string): Promise<string> {
     const enc = new TextEncoder()
@@ -236,10 +239,63 @@ export default function AnimatePage() {
           <input
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://.../image.jpg"
+            placeholder="https://.../image.jpg or data:image/*;base64,..."
             style={{ width: '100%', padding: 8, border: '1px solid #e5e7eb', borderRadius: 6 }}
           />
         </label>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div>Or upload an image</div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (!f) return
+              if (f.size > MAX_FILE_BYTES) {
+                setFilePreview('')
+                setImageUrl('')
+                setState({
+                  status: 'error',
+                  message: `Image too large (${(f.size / (1024 * 1024)).toFixed(2)} MB). Max 3 MB.`,
+                })
+                return
+              }
+              const reader = new FileReader()
+              reader.onload = () => {
+                const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+                setImageUrl(dataUrl)
+                setFilePreview(dataUrl)
+              }
+              reader.readAsDataURL(f)
+            }}
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            Upload image
+          </Button>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>
+            Max file size: 3 MB. Larger images may fail when sent as base64.
+          </span>
+          {filePreview && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img
+                src={filePreview}
+                alt="preview"
+                style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4 }}
+              />
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilePreview('')
+                  setImageUrl('')
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+        </div>
         <label>
           <div>Prompt (optional)</div>
           <input

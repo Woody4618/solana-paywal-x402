@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ jobId: body.jobId, requestId, state: 'queued' })
   } catch (e) {
     console.error('animate/start error', e)
-    return NextResponse.json({ error: 'server_error' }, { status: 500 })
+    const reason = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: 'server_error', reason }, { status: 500 })
   }
 }
