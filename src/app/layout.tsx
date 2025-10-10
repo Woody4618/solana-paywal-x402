@@ -14,6 +14,7 @@ const links: { label: string; path: string }[] = [
   { label: 'Home', path: '/' },
   { label: 'Account', path: '/account' },
   { label: 'Image Library', path: '/images' },
+  { label: 'Music Generator', path: '/music' },
   { label: 'Animate', path: '/animate' },
 ]
 
