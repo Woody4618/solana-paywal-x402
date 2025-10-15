@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletButton } from '@/components/solana/solana-provider'
@@ -12,9 +12,6 @@ import {
   getAccount,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
-import { Buffer } from 'buffer'
-
-const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
 
 type PaymentRequest = {
   imageId: string
@@ -207,7 +204,7 @@ export default function AnimatePage() {
       if (ownerAmount < amountRequired) {
         setState({
           status: 'error',
-          message: `Not enough USDC. Fund your wallet at https://faucet.circle.com/ (wallet: ${publicKey.toBase58()})`,
+          message: `Not enough USDC. Buy some or for devnet fund your wallet at https://faucet.circle.com/ (wallet: ${publicKey.toBase58()})`,
         })
         return
       }
@@ -242,12 +239,7 @@ export default function AnimatePage() {
       const rec = await fetch('/api/receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signature,
-          paymentRequestToken,
-          imageId: jobId,
-          paymentOptionId: st.paymentRequest?.id,
-        }),
+        body: JSON.stringify({ signature, paymentRequestToken, imageId: jobId }),
       })
       if (!rec.ok) {
         const j = await rec.json().catch(() => ({}))
@@ -263,7 +255,7 @@ export default function AnimatePage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-      <h1>Animate Image</h1>
+      <h1>Animate Image. Cost 50 USDC cent because the api is not free.</h1>
       <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
         <label>
           <div>Image URL</div>

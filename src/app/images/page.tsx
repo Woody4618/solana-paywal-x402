@@ -182,7 +182,7 @@ export default function ImagesPage() {
       const rec = await fetch('/api/receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, paymentRequestToken, imageId: id, paymentOptionId: paymentRequest.id }),
+        body: JSON.stringify({ signature, paymentRequestToken, imageId: id }),
       })
       if (!rec.ok) {
         const j = await rec.json().catch(() => ({}))
@@ -230,7 +230,7 @@ export default function ImagesPage() {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Image Library</h1>
+      <h1>Pay 1 USDC mainnet cent to see the ful res image</h1>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {images.map((img) => {
