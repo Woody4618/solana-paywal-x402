@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletButton } from '@/components/solana/solana-provider'
@@ -12,9 +12,6 @@ import {
   getAccount,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
-import { Buffer } from 'buffer'
-
-const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
 
 type PaymentRequest = {
   imageId: string
@@ -58,9 +55,45 @@ export default function AnimatePage() {
       .join('')
   }
 
+  function formatUnits(amount: number | bigint, decimals: number): string {
+    const bi = typeof amount === 'bigint' ? amount : BigInt(amount)
+    const base = 10n ** BigInt(decimals)
+    const integer = bi / base
+    const fraction = bi % base
+    const fractionStr = fraction.toString().padStart(decimals, '0').replace(/0+$/, '')
+    return fractionStr ? `${integer.toString()}.${fractionStr}` : integer.toString()
+  }
+
+  function loadImageDimensions(src: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height })
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = src
+    })
+  }
+
+  async function validateMinImageSize(src: string, min = 256) {
+    const { width, height } = await loadImageDimensions(src)
+    if (width < min || height < min) {
+      throw new Error(`Image too small (${width}×${height}). Minimum is ${min}×${min}.`)
+    }
+  }
+
   async function requestPayment() {
     setState({ status: 'requesting' })
     try {
+      if (!imageUrl) {
+        setState({ status: 'error', message: 'Please provide an image URL or upload an image' })
+        return
+      }
+      try {
+        await validateMinImageSize(imageUrl, 256)
+      } catch (e) {
+        setState({ status: 'error', message: e instanceof Error ? e.message : String(e) })
+        return
+      }
       const res = await fetch('/api/animate/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,7 +204,7 @@ export default function AnimatePage() {
       if (ownerAmount < amountRequired) {
         setState({
           status: 'error',
-          message: `Not enough USDC. Fund your wallet at https://faucet.circle.com/ (wallet: ${publicKey.toBase58()})`,
+          message: `Not enough USDC. Buy some or for devnet fund your wallet at https://faucet.circle.com/ (wallet: ${publicKey.toBase58()})`,
         })
         return
       }
@@ -186,16 +219,6 @@ export default function AnimatePage() {
       } catch {
         instructions.push(createAssociatedTokenAccountInstruction(owner, recipientAta, recipient, mint))
       }
-
-      const expectedMemo = await sha256Hex(paymentRequestToken || '')
-      const memoData = new TextEncoder().encode(expectedMemo)
-      instructions.push(
-        new TransactionInstruction({
-          programId: MEMO_PROGRAM_ID,
-          keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-          data: Buffer.from(memoData),
-        }),
-      )
 
       instructions.push(createTransferInstruction(ownerAta, recipientAta, owner, paymentRequest.amount))
 
@@ -224,7 +247,7 @@ export default function AnimatePage() {
         return
       }
       const { accessToken } = (await rec.json()) as { accessToken: string }
-      setState({ status: 'authorized', accessToken, jobId })
+      await startJob(accessToken, jobId)
     } catch (e) {
       setState({ status: 'error', message: e instanceof Error ? e.message : String(e) })
     }
@@ -232,7 +255,7 @@ export default function AnimatePage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: '0 auto' }}>
-      <h1>Animate Image</h1>
+      <h1>Animate Image. Cost 50 USDC cent because the api is not free.</h1>
       <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
         <label>
           <div>Image URL</div>
@@ -265,8 +288,27 @@ export default function AnimatePage() {
               const reader = new FileReader()
               reader.onload = () => {
                 const dataUrl = typeof reader.result === 'string' ? reader.result : ''
-                setImageUrl(dataUrl)
-                setFilePreview(dataUrl)
+                if (!dataUrl) return
+                // Validate minimum dimensions client-side before accepting
+                loadImageDimensions(dataUrl)
+                  .then(({ width, height }) => {
+                    if (width < 256 || height < 256) {
+                      setFilePreview('')
+                      setImageUrl('')
+                      setState({
+                        status: 'error',
+                        message: `Image too small (${width}×${height}). Minimum is 256×256.`,
+                      })
+                      return
+                    }
+                    setImageUrl(dataUrl)
+                    setFilePreview(dataUrl)
+                  })
+                  .catch(() => {
+                    setFilePreview('')
+                    setImageUrl('')
+                    setState({ status: 'error', message: 'Failed to load image preview' })
+                  })
               }
               reader.readAsDataURL(f)
             }}
@@ -323,7 +365,12 @@ export default function AnimatePage() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: '#b45309' }}>402 Payment Required</span>
             {!connected && <WalletButton />}
-            {connected && <Button onClick={pay}>Pay</Button>}
+            {connected && (
+              <Button onClick={pay}>
+                Pay {formatUnits(state.paymentRequest.amount, state.paymentRequest.decimals)}{' '}
+                {state.paymentRequest.currency}
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setState({ status: 'idle' })}>
               Cancel
             </Button>

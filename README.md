@@ -1,20 +1,12 @@
 # solana-paywall
 
-This is a Next.js app containing:
+This example shows how to use ACK-Pay with a Next.js app.
+It uses x402 to pay for paywalled content on Solana.
+It contains three examples:
 
-- Tailwind CSS setup for styling
-- Useful wallet UI elements setup using [@solana/web3.js](https://www.npmjs.com/package/@solana/web3.js)
-- A basic Counter Solana program written in Anchor
-
-## Getting Started
-
-### Installation
-
-#### Download the template
-
-```shell
-download pnpm create solana-dapp@latest -t gh:solana-foundation/templates/web3js/solana-paywall
-```
+- Pay to view a full res Image.
+- Pay to animate an image using fal.ai api in the backend. (Costs actual money since the API is not free.)
+- A twitter bot that pays to animate an image when mentioned on the X timeline.
 
 #### Install Dependencies
 
@@ -22,117 +14,78 @@ download pnpm create solana-dapp@latest -t gh:solana-foundation/templates/web3js
 pnpm install
 ```
 
-## Apps
-
-### anchor
-
-This is a Solana program written in Rust using the Anchor framework.
-
 #### Commands
-
-You can use any normal anchor commands. Either move to the `anchor` directory and run the `anchor` command or prefix the
-command with `pnpm`, eg: `pnpm anchor`.
-
-#### Sync the program id:
-
-Running this command will create a new keypair in the `anchor/target/deploy` directory and save the address to the
-Anchor config file and update the `declare_id!` macro in the `./src/lib.rs` file of the program.
-
-You will manually need to update the constant in `anchor/lib/counter-exports.ts` to match the new program id.
-
-```shell
-pnpm anchor keys sync
-```
-
-#### Build the program:
-
-```shell
-pnpm anchor-build
-```
-
-#### Start the test validator with the program deployed:
-
-```shell
-pnpm anchor-localnet
-```
-
-#### Run the tests
-
-```shell
-pnpm anchor-test
-```
-
-#### Deploy to Devnet
-
-```shell
-pnpm anchor deploy --provider.cluster devnet
-```
-
-### web
-
-This is a React app that uses the Anchor generated client to interact with the Solana program.
-
-#### Commands
-
-Start the web app
-
-```shell
-pnpm dev
-```
-
-Build the web app
-
-```shell
-pnpm build
-```
-
----
 
 ## Environment Setup (.env.local)
 
-Create `examples/solana-paywall/.env.local` with the following variables:
+Use the setup scripts to populate required env vars for ACK and Solana.
 
-```ini
-# HMAC secret for signing/verifying JWTs (paymentRequestToken, accessToken)
-JWT_SECRET=your_hex_secret
-
-# Solana config (devnet)
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_USDC_MINT=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
-SOLANA_COMMITMENT=confirmed
-
-# Recipient public key (Solana address) to receive USDC payments
-SOLANA_RECIPIENT=your_solana_address
-
-# ACK-Pay identities for the example
-SERVER_PRIVATE_KEY_HEX=secp256k1_private_key_hex
-RECEIPT_SERVICE_PRIVATE_KEY_HEX=secp256k1_private_key_hex
-```
-
-### Quick setup script
-
-Run this to generate `.env.local` with sane defaults (you only need to paste your devnet recipient address afterward):
+### 1) Base setup
 
 ```bash
 pnpm setup
 ```
 
-The script writes:
+This creates/updates `.env.local` with sensible defaults:
 
-- `JWT_SECRET`, `SERVER_PRIVATE_KEY_HEX`, `RECEIPT_SERVICE_PRIVATE_KEY_HEX` (random 32-byte hex)
+- `JWT_SECRET` (random 32-byte hex)
+- `SERVER_PRIVATE_KEY_HEX` (ACK PaymentRequest issuer)
+- `RECEIPT_SERVICE_PRIVATE_KEY_HEX` (ACK Receipt issuer)
 - `SOLANA_RPC_URL`, `SOLANA_USDC_MINT`, `SOLANA_COMMITMENT`
-- Leaves `SOLANA_RECIPIENT` empty for you to fill in with your devnet address
+- leaves `SOLANA_RECIPIENT` empty
 
-After editing `.env.local`, restart the dev server for changes to take effect.
+### 2) Generate a Solana keypair and fill recipient
 
-### Run the example
+```bash
+pnpm run gen:solana-keypair
+```
+
+This prints a new Solana keypair and updates `.env.local` non-destructively with:
+
+- `SOLANA_RECIPIENT` (public key)
+- Also prints JSON/base58 secret for your own backup (not required by the app)
+
+You can also output JSON for tooling:
+
+```bash
+node bin/gen-solana-keypair.mjs --json
+```
+
+### Run the app
 
 ```bash
 # from the repo root
-cd examples/solana-paywall
 pnpm install
-pnpm setup     # generates .env.local (fill in SOLANA_RECIPIENT)
 pnpm dev
 ```
 
-Open `http://localhost:3000` to view the paywall gallery.
+Open `http://localhost:3000`.
+
+## Payment flow (ACK-Pay, no Memo)
+
+- The server returns 402 with a signed ACK PaymentRequest (JWT) and `paymentOptions`.
+- The client selects a Solana option, performs a USDC transfer to `SOLANA_RECIPIENT`.
+- The client requests a receipt with `{ signature, paymentRequestToken, paymentOptionId }`.
+- The server verifies:
+  - PaymentRequestToken signature/expiry
+  - The specific option (network, recipient, decimals, amount)
+  - On-chain tx: credited recipient ATA for the mint, correct delta, no errors
+  - Payer DID from fee payer and CAIP-2 network
+- The server issues a Receipt VC and a short-lived access token; the client proceeds with the protected action (e.g., animation start).
+
+To run the twitter bot, you need to set up a twitter developer account and get the following env variables:
+
+- `TWITTER_CLIENT_ID`
+- `TWITTER_CLIENT_SECRET`
+- `TWITTER_ACCESS_TOKEN`
+- `TWITTER_ACCESS_TOKEN_SECRET`
+
+Note the twitter api is pretty expensive so maybe you find a cheaper way of calling it by scraping but i always got blocked by cloudflare so i just paid for the api at some point. :(
+
+More infos on the twitter bot in the [twitter-bot](twitter-bot) folder.
+
+Then run the bot with:
+
+```shell
+bun src/twitter-replies.ts
+```

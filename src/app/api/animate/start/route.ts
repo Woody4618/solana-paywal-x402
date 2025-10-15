@@ -34,19 +34,33 @@ export async function POST(req: NextRequest) {
     const url = 'https://queue.fal.run/fal-ai/kling-video/v2.1/master/image-to-video'
     console.debug('animate/start submit url', url)
 
-    const submitResp = await fetch(url, {
+    let submitResp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Key ${process.env.FAL_KEY}`,
       },
-      // IMPORTANT: send flat payload (no input wrapper) per fal queue docs
       body: JSON.stringify({
         image_url: body.image_url,
         prompt: body.prompt ?? '',
         duration: body.duration ?? '5',
       }),
     })
+    if (submitResp.status === 401) {
+      // Retry with Bearer if provider expects it
+      submitResp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.FAL_KEY}`,
+        },
+        body: JSON.stringify({
+          image_url: body.image_url,
+          prompt: body.prompt ?? '',
+          duration: body.duration ?? '5',
+        }),
+      })
+    }
     const raw = await submitResp.text().catch(() => '')
     console.debug('animate/start upstream', submitResp.status, raw)
     if (!submitResp.ok) {
@@ -54,7 +68,8 @@ export async function POST(req: NextRequest) {
     }
     const submitJson = (raw ? JSON.parse(raw) : {}) as { request_id?: string }
     const requestId = submitJson.request_id
-    if (!requestId) return NextResponse.json({ error: 'provider_error', url }, { status: 502 })
+    if (!requestId)
+      return NextResponse.json({ error: 'provider_error', url, detail: raw || 'missing_request_id' }, { status: 502 })
 
     return NextResponse.json({ jobId: body.jobId, requestId, state: 'queued' })
   } catch (e) {

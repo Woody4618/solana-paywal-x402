@@ -63,6 +63,15 @@ export default function ImagesPage() {
       .join('')
   }
 
+  function formatUnits(amount: number | bigint, decimals: number): string {
+    const bi = typeof amount === 'bigint' ? amount : BigInt(amount)
+    const base = 10n ** BigInt(decimals)
+    const integer = bi / base
+    const fraction = bi % base
+    const fractionStr = fraction.toString().padStart(decimals, '0').replace(/0+$/, '')
+    return fractionStr ? `${integer.toString()}.${fractionStr}` : integer.toString()
+  }
+
   async function checkAccess(id: string) {
     setCard((prev) => ({ ...prev, [id]: { status: 'checking' } }))
     try {
@@ -151,16 +160,6 @@ export default function ImagesPage() {
         instructions.push(createAssociatedTokenAccountInstruction(owner, recipientAta, recipient, mint))
       }
 
-      const expectedMemo = await sha256Hex(paymentRequestToken)
-      const memoData = new TextEncoder().encode(expectedMemo)
-      instructions.push(
-        new TransactionInstruction({
-          programId: MEMO_PROGRAM_ID,
-          keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-          data: Buffer.from(memoData),
-        }),
-      )
-
       instructions.push(createTransferInstruction(ownerAta, recipientAta, owner, paymentRequest.amount))
 
       const { blockhash } = await connection.getLatestBlockhash()
@@ -170,7 +169,7 @@ export default function ImagesPage() {
         instructions,
       }).compileToV0Message()
       const tx = new VersionedTransaction(messageV0)
-      const signature = await sendTransaction(tx, connection, { maxRetries: 5 })
+      const signature = await sendTransaction(tx, connection, { maxRetries: 5, skipPreflight: true })
 
       // Confirm before requesting receipt to avoid race conditions
       try {
@@ -187,6 +186,7 @@ export default function ImagesPage() {
       })
       if (!rec.ok) {
         const j = await rec.json().catch(() => ({}))
+        console.log('Receipt failed:', j)
         setCard((prev) => ({ ...prev, [id]: { status: 'error', message: `Receipt failed: ${j.error ?? rec.status}` } }))
         return
       }
@@ -230,7 +230,7 @@ export default function ImagesPage() {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Image Library</h1>
+      <h1>Pay 0.01 USDC mainnet to see the ful res image</h1>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {images.map((img) => {
@@ -252,7 +252,14 @@ export default function ImagesPage() {
                 {st.status === 'requires_payment' && (
                   <>
                     <span style={{ color: '#b45309' }}>402 Payment Required</span>
-                    {connected ? <Button onClick={() => pay(img.id)}>Pay</Button> : <WalletButton />}
+                    {connected ? (
+                      <Button onClick={() => pay(img.id)}>
+                        Pay {formatUnits(st.paymentRequest.amount, st.paymentRequest.decimals)}{' '}
+                        {st.paymentRequest.currency}
+                      </Button>
+                    ) : (
+                      <WalletButton />
+                    )}
                   </>
                 )}
                 {st.status === 'paying' && <span>Paying...</span>}

@@ -5,9 +5,12 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/full/[id]': ['./src/private/images/**/*'],
   },
-  env: {
-    NEXT_PUBLIC_SOLANA_RPC_URL: process.env.SOLANA_RPC_URL,
+  // Only lint the app code; exclude bot workspace
+  eslint: {
+    dirs: ['src'],
   },
+  // Ensure Next.js doesn't try to bundle or type-check the twitter-bot workspace
+  transpilePackages: [],
 }
 
 export default nextConfig

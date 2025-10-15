@@ -39,25 +39,28 @@ export async function POST(req: NextRequest) {
         recipient: string
         network: string
         receiptService: string
+        mint?: string
       }
       type PaymentRequestInit = {
         id: string
         paymentOptions: [PaymentOption, ...PaymentOption[]]
+        expiresAt?: string | Date
       }
 
+      const option: PaymentOption = {
+        id: 'usdc-solana-devnet',
+        amount: BigInt(500000).toString(),
+        decimals: 6,
+        currency: 'USDC',
+        recipient: solanaConfig.recipient,
+        network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+        receiptService: `${origin}/api/receipt`,
+        mint: solanaConfig.mint,
+      }
       const paymentRequestInit: PaymentRequestInit = {
         id: crypto.randomUUID(),
-        paymentOptions: [
-          {
-            id: 'usdc-solana-devnet',
-            amount: BigInt(50000).toString(),
-            decimals: 6,
-            currency: 'USDC',
-            recipient: solanaConfig.recipient,
-            network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-            receiptService: `${origin}/api/receipt`,
-          },
-        ],
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        paymentOptions: [option],
       }
 
       const paymentRequestBody = await createSignedPaymentRequest(paymentRequestInit, {
@@ -66,18 +69,15 @@ export async function POST(req: NextRequest) {
         algorithm: server.alg,
       })
 
-      const now = Math.floor(Date.now() / 1000)
       const paymentRequest = {
         jti: paymentRequestInit.id,
-        imageId: jobId, // use existing receipt flow by binding to imageId field
-        network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-        currency: 'USDC',
-        decimals: 6,
-        amount: 50000,
-        mint: solanaConfig.mint,
-        recipient: solanaConfig.recipient,
-        iat: now,
-        exp: now + 10 * 60,
+        imageId: jobId,
+        network: option.network,
+        currency: option.currency,
+        decimals: option.decimals,
+        amount: typeof option.amount === 'string' ? Number(option.amount) : option.amount,
+        mint: option.mint ?? solanaConfig.mint,
+        recipient: option.recipient,
       }
 
       return new NextResponse(
@@ -85,29 +85,15 @@ export async function POST(req: NextRequest) {
           error: 'Payment Required',
           jobId,
           paymentRequest,
+          paymentOptions: paymentRequestInit.paymentOptions,
           paymentRequestToken: paymentRequestBody.paymentRequestToken,
         }),
         { status: 402, headers: { 'Content-Type': 'application/json' } },
       )
     }
 
-    // Missing keys -> 402 with setup hint, but still issue a jobId so client can retry later
-    const now = Math.floor(Date.now() / 1000)
-    const paymentRequest = {
-      jti: crypto.randomUUID(),
-      imageId: jobId,
-      network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-      currency: 'USDC',
-      decimals: 6,
-      amount: 50000,
-      mint: solanaConfig.mint,
-      recipient: solanaConfig.recipient,
-      iat: now,
-      exp: now + 10 * 60,
-    }
-
     return new NextResponse(
-      JSON.stringify({ error: 'Payment Required', reason: 'server_misconfigured', missing, jobId, paymentRequest }),
+      JSON.stringify({ error: 'Payment Required', reason: 'server_misconfigured', missing, jobId }),
       { status: 402, headers: { 'Content-Type': 'application/json' } },
     )
   } catch (e) {

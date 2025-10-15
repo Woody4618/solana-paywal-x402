@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "lint": "next lint",
     "start": "next start",
-    "setup": "node ./bin/setup.mjs"
+    "setup": "node ./bin/setup.mjs",
+    "gen:solana-keypair": "node ./bin/gen-solana-keypair.mjs"
   },
   "description": "Next.js, Tailwind, @solana/web3.js, Wallet Adapter",
   "keywords": [

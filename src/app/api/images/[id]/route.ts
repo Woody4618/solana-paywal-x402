@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Build an ACK-Pay Payment Request and sign it if keys are present
     if (missing.length === 0) {
       const server = await getIdentityFromPrivateKeyHex(process.env.SERVER_PRIVATE_KEY_HEX as string)
+      
       type PaymentOption = {
         id: string
         amount: string
@@ -43,24 +44,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         recipient: string
         network: string
         receiptService: string
+        mint?: string
       }
       type PaymentRequestInit = {
         id: string
         paymentOptions: [PaymentOption, ...PaymentOption[]]
+        expiresAt?: string | Date
+      }
+      const option: PaymentOption = {
+        id: 'usdc-solana-devnet',
+        amount: BigInt(10000).toString(),
+        decimals: 6,
+        currency: 'USDC',
+        recipient: solanaConfig.recipient,
+        network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+        receiptService: `${origin}/api/receipt`,
+        mint: solanaConfig.mint,
       }
       const paymentRequestInit: PaymentRequestInit = {
         id: crypto.randomUUID(),
-        paymentOptions: [
-          {
-            id: 'usdc-solana-devnet',
-            amount: BigInt(50000).toString(),
-            decimals: 6,
-            currency: 'USDC',
-            recipient: solanaConfig.recipient,
-            network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-            receiptService: `${origin}/api/receipt`,
-          },
-        ],
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        paymentOptions: [option],
       }
       const paymentRequestBody = await createSignedPaymentRequest(paymentRequestInit, {
         issuer: server.did,
@@ -68,48 +72,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         algorithm: server.alg,
       })
 
-      // Keep client payload shape but with a real ACK-Pay token
       const minimal = {
         jti: paymentRequestInit.id,
         imageId: id,
-        network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-        currency: 'USDC',
-        decimals: 6,
-        amount: 50000,
-        mint: solanaConfig.mint,
-        recipient: solanaConfig.recipient,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 10 * 60,
+        network: option.network,
+        currency: option.currency,
+        decimals: option.decimals,
+        amount: typeof option.amount === 'string' ? Number(option.amount) : option.amount,
+        mint: option.mint ?? solanaConfig.mint,
+        recipient: option.recipient,
       }
 
       return new NextResponse(
         JSON.stringify({
           error: 'Payment Required',
           paymentRequest: minimal,
+          paymentOptions: paymentRequestInit.paymentOptions,
           paymentRequestToken: paymentRequestBody.paymentRequestToken,
         }),
         { status: 402, headers: { 'Content-Type': 'application/json' } },
       )
     }
 
-    // Missing keys -> 402 with setup hint
-    const now = Math.floor(Date.now() / 1000)
-    const paymentRequest = {
-      jti: crypto.randomUUID(),
-      imageId: id,
-      network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-      currency: 'USDC',
-      decimals: 6,
-      amount: 50000,
-      mint: solanaConfig.mint,
-      recipient: solanaConfig.recipient,
-      iat: now,
-      exp: now + 10 * 60,
-    }
-    return new NextResponse(
-      JSON.stringify({ error: 'Payment Required', reason: 'server_misconfigured', missing, paymentRequest }),
-      { status: 402, headers: { 'Content-Type': 'application/json' } },
-    )
+    return new NextResponse(JSON.stringify({ error: 'Payment Required', reason: 'server_misconfigured', missing }), {
+      status: 402,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   const url = `/api/full/${id}`
