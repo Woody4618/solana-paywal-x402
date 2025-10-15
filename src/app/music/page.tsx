@@ -12,9 +12,7 @@ import {
   getAccount,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
-import { Buffer } from 'buffer'
-
-const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
+// No SPL Memo required in ACK PoP flow
 
 type PaymentRequest = {
   musicId: string
@@ -46,22 +44,16 @@ export default function MusicPage() {
 
   const walletAddress = useMemo(() => publicKey?.toBase58() ?? '', [publicKey])
 
-  async function sha256Hex(input: string): Promise<string> {
-    const enc = new TextEncoder()
-    const digest = await crypto.subtle.digest('SHA-256', enc.encode(input))
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  }
+  // no memo hashing needed
 
   async function requestMusic() {
     if (!prompt.trim()) {
       setState({ status: 'error', message: 'Please enter a music description' })
       return
     }
-    
+
     setState({ status: 'requesting' })
-    
+
     try {
       const res = await fetch('/api/music/request', {
         method: 'POST',
@@ -72,9 +64,9 @@ export default function MusicPage() {
           duration: parseInt(duration),
         }),
       })
-      
+
       const data = await res.json()
-      
+
       if (res.status === 402) {
         setState({
           status: 'requires_payment',
@@ -95,10 +87,10 @@ export default function MusicPage() {
   async function payForMusic() {
     const st = state
     if (st.status !== 'requires_payment') return
-    
+
     setState({ status: 'paying' })
     const { paymentRequest, paymentRequestToken } = st
-    
+
     try {
       if (!connected) {
         await connect()
@@ -142,16 +134,6 @@ export default function MusicPage() {
         instructions.push(createAssociatedTokenAccountInstruction(owner, recipientAta, recipient, mint))
       }
 
-      const expectedMemo = await sha256Hex(paymentRequestToken!)
-      const memoData = new TextEncoder().encode(expectedMemo)
-      instructions.push(
-        new TransactionInstruction({
-          programId: MEMO_PROGRAM_ID,
-          keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-          data: Buffer.from(memoData),
-        }),
-      )
-
       instructions.push(createTransferInstruction(ownerAta, recipientAta, owner, paymentRequest.amount))
 
       const { blockhash } = await connection.getLatestBlockhash()
@@ -171,8 +153,8 @@ export default function MusicPage() {
         // best-effort; proceed to server validation
       }
 
-      // Submit receipt using simplified music receipt API
-      const rec = await fetch('/api/music-receipt', {
+      // Submit receipt using shared ACK receipt endpoint
+      const rec = await fetch('/api/receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signature, paymentRequestToken, imageId: st.jobId }),
@@ -193,15 +175,15 @@ export default function MusicPage() {
   async function startGeneration() {
     const st = state
     if (st.status !== 'authorized') return
-    
+
     setState({ status: 'generating', jobId: st.jobId, accessToken: st.accessToken })
-    
+
     try {
       const startRes = await fetch('/api/music/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${st.accessToken}`,
+          Authorization: `Bearer ${st.accessToken}`,
         },
         body: JSON.stringify({
           jobId: st.jobId,
@@ -210,18 +192,18 @@ export default function MusicPage() {
           duration: parseInt(duration),
         }),
       })
-      
+
       const startData = await startRes.json()
       if (!startRes.ok) {
         setState({ status: 'error', message: startData.error || 'Generation failed' })
         return
       }
-      
+
       // Direct result from simplified API
       setState({
         status: 'completed',
         url: startData.url,
-        title: startData.title
+        title: startData.title,
       })
     } catch (e: unknown) {
       setState({ status: 'error', message: e instanceof Error ? e.message : String(e) })
@@ -244,14 +226,12 @@ export default function MusicPage() {
       {/* Input Form */}
       <div className="space-y-4 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-2">
-            Music Description *
-          </label>
+          <label className="block text-sm font-medium mb-2">Music Description *</label>
           <textarea
             className="w-full p-3 border rounded-lg resize-none"
             placeholder="e.g., Upbeat electronic music for working, with piano and synth sounds"
             value={prompt}
-            onChange={e => setPrompt(e.target.value)}
+            onChange={(e) => setPrompt(e.target.value)}
             rows={3}
             disabled={state.status !== 'idle'}
           />
@@ -262,13 +242,13 @@ export default function MusicPage() {
             <label className="block text-sm font-medium mb-2">Duration</label>
             <select
               value={duration}
-              onChange={e => setDuration(e.target.value as '30' | '60' | '120')}
+              onChange={(e) => setDuration(e.target.value as '30' | '60' | '120')}
               className="w-full p-2 border rounded"
               disabled={state.status !== 'idle'}
             >
-              <option value="30">30 seconds - 0.1 USDC</option>
-              <option value="60">1 minute - 0.2 USDC</option>
-              <option value="120">2 minutes - 0.3 USDC</option>
+              <option value="30">30 seconds - 0.01 USDC</option>
+              <option value="60">1 minute - 0.02 USDC</option>
+              <option value="120">2 minutes - 0.03 USDC</option>
             </select>
           </div>
 
@@ -276,7 +256,7 @@ export default function MusicPage() {
             <label className="block text-sm font-medium mb-2">Genre (optional)</label>
             <select
               value={genre}
-              onChange={e => setGenre(e.target.value)}
+              onChange={(e) => setGenre(e.target.value)}
               className="w-full p-2 border rounded"
               disabled={state.status !== 'idle'}
             >
@@ -312,7 +292,7 @@ export default function MusicPage() {
           <div className="border rounded-lg p-4 bg-yellow-50">
             <h3 className="font-medium mb-2">Payment Required</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Cost: {state.paymentRequest.amount / 1000000} USDC for {duration} seconds of music
+              Cost: {state.paymentRequest.amount / 100000} USDC for {duration} seconds of music
             </p>
             {connected ? (
               <Button onClick={payForMusic} className="w-full">
@@ -354,9 +334,7 @@ export default function MusicPage() {
               Your browser does not support the audio element.
             </audio>
             <div className="space-x-2">
-              <Button onClick={() => window.open(state.url, '_blank')}>
-                Open Audio
-              </Button>
+              <Button onClick={() => window.open(state.url, '_blank')}>Open Audio</Button>
               <a href={state.url} download>
                 <Button variant="outline">Download</Button>
               </a>

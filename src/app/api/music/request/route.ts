@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { solanaConfig } from '@/lib/config'
-import { signJwt } from '@/lib/jwt'
+import { createSignedPaymentRequest } from 'agentcommercekit'
+import { getIdentityFromPrivateKeyHex } from '@/lib/ack'
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,42 +41,84 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json(
         { error: 'Payment Required', reason: 'server_misconfigured', missing, jobId, paymentRequest },
-        { status: 402 }
+        { status: 402 },
       )
     }
 
     // Calculate price based on duration (cheaper prices)
     const priceMap: Record<number, number> = {
-      30: 100000,   // 0.1 USDC
-      60: 200000,   // 0.2 USDC
-      120: 300000,  // 0.3 USDC
+      30: 10000, // 0.01 USDC
+      60: 20000, // 0.02 USDC
+      120: 30000, // 0.03 USDC
     }
     const amount = priceMap[duration] || 200000
 
+    const origin = new URL(request.url).origin
+    const server = await getIdentityFromPrivateKeyHex(process.env.SERVER_PRIVATE_KEY_HEX as string)
+
+    type PaymentOption = {
+      id: string
+      amount: string
+      decimals: number
+      currency: string
+      recipient: string
+      network: string
+      receiptService: string
+    }
+    type PaymentRequestInit = {
+      id: string
+      paymentOptions: [PaymentOption, ...PaymentOption[]]
+      expiresAt?: string | Date
+    }
+
+    // Derive CAIP-2 chainRef from RPC
+    const rpc = (process.env.SOLANA_RPC_URL || '').toLowerCase()
+    const chainRef = rpc.includes('devnet')
+      ? '4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z'
+      : rpc.includes('testnet')
+        ? 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1'
+        : '5eykt4UsFv8P8NJdTREpEqAZ4rZDVNHDxxy3j2Gj7hJ'
+
+    const option: PaymentOption = {
+      id: `usdc-solana-devnet-music-${duration}`,
+      amount: BigInt(amount).toString(),
+      decimals: 6,
+      currency: 'USDC',
+      recipient: solanaConfig.recipient,
+      network: `solana:${chainRef}`,
+      receiptService: `${origin}/api/receipt`,
+    }
+    const paymentRequestInit: PaymentRequestInit = {
+      id: crypto.randomUUID(),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      paymentOptions: [option],
+    }
+
+    const signed = await createSignedPaymentRequest(paymentRequestInit, {
+      issuer: server.did,
+      signer: server.signer,
+      algorithm: server.alg,
+    })
+
+    // Minimal client payload for UI (non-authoritative; token is source of truth)
     const paymentRequest = {
       musicId: jobId,
-      network: 'solana',
-      currency: 'USDC',
-      decimals: 6,
+      network: option.network,
+      currency: option.currency,
+      decimals: option.decimals,
       amount,
       mint: solanaConfig.mint,
       recipient: solanaConfig.recipient,
     }
 
-    // Create payment request token (for memo verification)
-    // Use imageId for compatibility with existing receipt system
-    const paymentRequestToken = signJwt({ imageId: jobId, prompt, genre, duration, amount }, jwtSecret)
-
-    // Store job data (in production, use a database)
-    // For now, we'll rely on the JWT token to carry the data
-
     return NextResponse.json(
       {
         jobId,
         paymentRequest,
-        paymentRequestToken,
+        paymentOptions: paymentRequestInit.paymentOptions,
+        paymentRequestToken: signed.paymentRequestToken,
       },
-      { status: 402 }
+      { status: 402 },
     )
   } catch (e: unknown) {
     console.error('music/request error', e)

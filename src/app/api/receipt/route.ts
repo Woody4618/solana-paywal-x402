@@ -5,8 +5,6 @@ import { signJwt as signHmacJwt } from '@/lib/jwt'
 import { createPaymentReceipt, getDidResolver, verifyPaymentRequestToken, signCredential } from 'agentcommercekit'
 import { getIdentityFromPrivateKeyHex } from '@/lib/ack'
 
-// Memo extraction removed in ACK PoP flow
-
 function toBase58FromAccountKey(key: unknown): string {
   if (typeof key === 'object' && key !== null) {
     const rec = key as { toBase58?: () => string; pubkey?: { toBase58?: () => string } }
