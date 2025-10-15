@@ -8,6 +8,9 @@ It contains three examples:
 - Pay to animate an image using fal.ai api in the backend. (Costs actual money since the API is not free.)
 - A twitter bot that pays to animate an image when mentioned on the X timeline.
 
+You can try it out live here: 
+https://solana-paywal.vercel.app/images
+
 #### Install Dependencies
 
 ```shell
