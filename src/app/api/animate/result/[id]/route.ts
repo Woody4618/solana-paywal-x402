@@ -77,7 +77,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     let rText = await rResp.text().catch(() => '')
     console.debug('animate/result response upstream', rResp.status, rText)
 
-    // Fallback: try subpath model variant if base URL returns 4xx (e.g., 422)
     if (!rResp.ok && rResp.status >= 400 && rResp.status < 500) {
       const subpathUrl = `https://queue.fal.run/fal-ai/kling-video/v2.1/master/image-to-video/requests/${id}`
       console.debug('animate/result fallback url', subpathUrl)
