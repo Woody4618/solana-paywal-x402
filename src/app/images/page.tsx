@@ -8,11 +8,8 @@ import {
   getAccount,
   getAssociatedTokenAddress,
 } from '@solana/spl-token'
-import { Buffer } from 'buffer'
 import { Button } from '@/components/ui/button'
 import { WalletButton } from '@/components/solana/solana-provider'
-
-const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
 
 type ImageItem = { id: string; thumb: string }
 
@@ -54,14 +51,6 @@ export default function ImagesPage() {
     const id = setInterval(() => setNowTs(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
-
-  async function sha256Hex(input: string): Promise<string> {
-    const enc = new TextEncoder()
-    const digest = await crypto.subtle.digest('SHA-256', enc.encode(input))
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  }
 
   function formatUnits(amount: number | bigint, decimals: number): string {
     const bi = typeof amount === 'bigint' ? amount : BigInt(amount)
