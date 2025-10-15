@@ -230,7 +230,7 @@ export default function ImagesPage() {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Pay 1 USDC mainnet cent to see the ful res image</h1>
+      <h1>Pay 0.01 USDC mainnet to see the ful res image</h1>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {images.map((img) => {
