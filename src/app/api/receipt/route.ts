@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Connection, PublicKey, TokenBalance } from '@solana/web3.js'
-import bs58 from 'bs58'
 import { solanaConfig } from '@/lib/config'
 import { signJwt as signHmacJwt } from '@/lib/jwt'
 import { createPaymentReceipt, getDidResolver, verifyPaymentRequestToken, signCredential } from 'agentcommercekit'
@@ -69,7 +68,14 @@ export async function POST(req: NextRequest) {
       )
       if (byId && isSolanaOption(byId)) solOpt = byId
     }
-    if (!solOpt) solOpt = paymentRequest.paymentOptions.find(isSolanaOption)
+    if (!solOpt) {
+      for (const o of paymentRequest.paymentOptions as unknown[]) {
+        if (isSolanaOption(o)) {
+          solOpt = o
+          break
+        }
+      }
+    }
     if (!solOpt) return NextResponse.json({ error: 'no_solana_option' }, { status: 400 })
 
     // Load and validate tx
